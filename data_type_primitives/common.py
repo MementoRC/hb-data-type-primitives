@@ -100,6 +100,16 @@ class LPType(Enum):
     COLLECT = 3
 
 
+class LimitOrderStatus(Enum):
+    UNKNOWN = 0
+    NEW = 1
+    OPEN = 2
+    CANCELING = 3
+    CANCELED = 4
+    COMPLETED = 5
+    FAILED = 6
+
+
 _KT = TypeVar("_KT")
 _VT = TypeVar("_VT")
 

@@ -5,6 +5,7 @@ from data_type_primitives.cancellation_result import CancellationResult
 from data_type_primitives.common import (
     GroupedSetDict,
     LazyDict,
+    LimitOrderStatus,
     LPType,
     MarketDict,
     OpenOrder,
@@ -23,6 +24,7 @@ from data_type_primitives.in_flight_order import (
     PerpetualDerivativeInFlightOrder,
     TradeUpdate,
 )
+from data_type_primitives.limit_order import LimitOrder
 from data_type_primitives.trade_fee import (
     AddedToCostTradeFee,
     DeductedFromReturnsTradeFee,
@@ -42,6 +44,8 @@ __all__ = [
     "GroupedSetDict",
     "InFlightOrder",
     "LazyDict",
+    "LimitOrder",
+    "LimitOrderStatus",
     "LPType",
     "MakerTakerExchangeFeeRates",
     "MarketDict",
