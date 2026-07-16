@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import importlib
 import logging
 import math
 from decimal import Decimal
@@ -279,9 +280,10 @@ class InFlightOrder:
         NOTE: LimitOrder is a Cython extension type available only in the full hummingbot runtime.
         This method is preserved for API compatibility but will raise ImportError in standalone use.
         """
-        from hummingbot.core.data_type.limit_order import LimitOrder
+        limit_order_module = importlib.import_module("hummingbot.core.data_type.limit_order")
+        limit_order_cls = limit_order_module.LimitOrder
 
-        return LimitOrder(
+        return limit_order_cls(
             client_order_id=self.client_order_id,
             trading_pair=self.trading_pair,
             is_buy=self.trade_type is TradeType.BUY,

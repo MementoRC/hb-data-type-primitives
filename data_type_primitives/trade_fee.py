@@ -1,18 +1,63 @@
 from __future__ import annotations
 
-import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from ._trading_pair import combine_to_hb_trading_pair, split_hb_trading_pair
 from .common import PositionAction, TradeType
 
-if typing.TYPE_CHECKING:  # avoid circular import problems
-    from hummingbot.connector.exchange_base import ExchangeBase
-    from hummingbot.core.data_type.order_candidate import OrderCandidate
-    from hummingbot.core.rate_oracle.rate_oracle import RateOracle
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
+# ---------------------------------------------------------------------------
+# Structural (Protocol) collaborators.
+#
+# data_type_primitives is an ADR-0001 L0 leaf and must not import hummingbot
+# (enforced by the data-type-primitives-boundary and
+# adr-0001-l0-leaf-independence import-linter contracts). We therefore describe
+# the collaborators we need by shape rather than importing their concrete
+# hummingbot classes.
+# ---------------------------------------------------------------------------
+class RateSource(Protocol):
+    """Anything able to resolve a conversion rate for a trading pair.
+
+    Satisfied by hummingbot's ``RateOracle`` in the full runtime.
+    """
+
+    def get_pair_rate(self, trading_pair: str) -> Decimal | None: ...
+
+
+class ExchangeLike(Protocol):
+    """Minimal exchange surface needed to price fee tokens (hummingbot ExchangeBase)."""
+
+    def get_price(self, trading_pair: str, is_buy: bool) -> Decimal: ...
+
+
+class OrderCandidateLike(Protocol):
+    """Structural view of a hummingbot ``OrderCandidate`` used for fee-impact math."""
+
+    order_collateral: Any
+    potential_returns: Any
+
+    def get_size_token_and_order_size(self) -> tuple[str, Decimal]: ...
+
+
+# Optional default rate source. L0 purity forbids importing hummingbot's
+# RateOracle here, so the full runtime opts in by registering a provider, e.g.:
+#     set_default_rate_source_provider(lambda: RateOracle.get_instance())
+_default_rate_source_provider: Callable[[], RateSource] | None = None
+
+
+def set_default_rate_source_provider(
+    provider: Callable[[], RateSource] | None,
+) -> None:
+    """Register (or clear) the default rate source used when no rate_source is passed."""
+    global _default_rate_source_provider
+    _default_rate_source_provider = provider
+
 
 S_DECIMAL_0 = Decimal(0)
 
@@ -164,7 +209,7 @@ class TradeFeeBase(ABC):
 
     @abstractmethod
     def get_fee_impact_on_order_cost(
-        self, order_candidate: OrderCandidate, exchange: ExchangeBase
+        self, order_candidate: OrderCandidateLike, exchange: ExchangeLike
     ) -> TokenAmount | None:
         """
         WARNING: Do not use this method for sizing. Instead, use the `BudgetChecker`.
@@ -175,7 +220,7 @@ class TradeFeeBase(ABC):
 
     @abstractmethod
     def get_fee_impact_on_order_returns(
-        self, order_candidate: OrderCandidate, exchange: ExchangeBase
+        self, order_candidate: OrderCandidateLike, exchange: ExchangeLike
     ) -> Decimal | None:
         """
         WARNING: Do not use this method for sizing. Instead, use the `BudgetChecker`.
@@ -187,11 +232,16 @@ class TradeFeeBase(ABC):
     @staticmethod
     def _get_exchange_rate(
         trading_pair: str,
-        rate_source: RateOracle | None = None,  # noqa: F821
+        rate_source: RateSource | None = None,
     ) -> Decimal:
-        from hummingbot.core.rate_oracle.rate_oracle import RateOracle
-
-        local_rate_source: RateOracle | None = rate_source or RateOracle.get_instance()
+        local_rate_source: RateSource | None = rate_source
+        if local_rate_source is None and _default_rate_source_provider is not None:
+            local_rate_source = _default_rate_source_provider()
+        if local_rate_source is None:
+            raise ValueError(
+                f"Could not resolve a rate source for {trading_pair}. Pass a rate_source "
+                f"or register one via set_default_rate_source_provider()."
+            )
         rate: Decimal | None = local_rate_source.get_pair_rate(trading_pair)
         if rate is None:
             raise ValueError(
@@ -206,7 +256,7 @@ class TradeFeeBase(ABC):
         price: Decimal,
         order_amount: Decimal,
         token: str,
-        rate_source: RateOracle | None = None,  # noqa: F821
+        rate_source: RateSource | None = None,
     ) -> Decimal:
         base, quote = split_hb_trading_pair(trading_pair)
         fee_amount: Decimal = S_DECIMAL_0
@@ -260,7 +310,7 @@ class AddedToCostTradeFee(TradeFeeBase):
         return "AddedToCost"
 
     def get_fee_impact_on_order_cost(
-        self, order_candidate: OrderCandidate, exchange: ExchangeBase
+        self, order_candidate: OrderCandidateLike, exchange: ExchangeLike
     ) -> TokenAmount | None:
         """
         WARNING: Do not use this method for sizing. Instead, use the `BudgetChecker`.
@@ -289,7 +339,7 @@ class AddedToCostTradeFee(TradeFeeBase):
         return ret
 
     def get_fee_impact_on_order_returns(
-        self, order_candidate: OrderCandidate, exchange: ExchangeBase
+        self, order_candidate: OrderCandidateLike, exchange: ExchangeLike
     ) -> Decimal | None:
         """
         WARNING: Do not use this method for sizing. Instead, use the `BudgetChecker`.
@@ -305,7 +355,7 @@ class DeductedFromReturnsTradeFee(TradeFeeBase):
         return "DeductedFromReturns"
 
     def get_fee_impact_on_order_cost(
-        self, order_candidate: OrderCandidate, exchange: ExchangeBase
+        self, order_candidate: OrderCandidateLike, exchange: ExchangeLike
     ) -> TokenAmount | None:
         """
         WARNING: Do not use this method for sizing. Instead, use the `BudgetChecker`.
@@ -315,7 +365,7 @@ class DeductedFromReturnsTradeFee(TradeFeeBase):
         return None
 
     def get_fee_impact_on_order_returns(
-        self, order_candidate: OrderCandidate, exchange: ExchangeBase
+        self, order_candidate: OrderCandidateLike, exchange: ExchangeLike
     ) -> Decimal | None:
         """
         WARNING: Do not use this method for sizing. Instead, use the `BudgetChecker`.
