@@ -16,6 +16,13 @@ from data_type_primitives.common import (
     PriceType,
     TradeType,
 )
+from data_type_primitives.exceptions import (
+    ArgumentParserError,
+    HummingbotBaseException,
+    InvalidController,
+    InvalidScriptModule,
+    OracleRateUnavailable,
+)
 from data_type_primitives.funding_info import FundingInfo, FundingInfoUpdate
 from data_type_primitives.in_flight_order import (
     InFlightOrder,
@@ -37,12 +44,16 @@ from data_type_primitives.trade_fee import (
 __all__ = [
     "__version__",
     "AddedToCostTradeFee",
+    "ArgumentParserError",
     "CancellationResult",
     "DeductedFromReturnsTradeFee",
     "FundingInfo",
     "FundingInfoUpdate",
     "GroupedSetDict",
+    "HummingbotBaseException",
     "InFlightOrder",
+    "InvalidController",
+    "InvalidScriptModule",
     "LazyDict",
     "LimitOrder",
     "LimitOrderStatus",
@@ -50,6 +61,7 @@ __all__ = [
     "MakerTakerExchangeFeeRates",
     "MarketDict",
     "OpenOrder",
+    "OracleRateUnavailable",
     "OrderState",
     "OrderType",
     "OrderUpdate",
