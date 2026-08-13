@@ -7,6 +7,25 @@ from pydantic_core import core_schema
 
 
 class OrderType(Enum):
+    """Canonical order type for the hb-* ecosystem.
+
+    The integer values carry NO semantics. They are a historical artifact of the
+    original hummingbot ``common.py``: they are not ordered, not persisted, and not
+    part of any wire format. As of 2026-08-12 there are zero reads of
+    ``OrderType.<MEMBER>.value`` anywhere in hummingbot/ or the sub-packages.
+
+    ``name`` is the stable public identity. Every consumer is name-keyed:
+
+    * persistence writes ``.name`` into TEXT columns
+      (``hummingbot/connector/markets_recorder.py:401,457``)
+    * cross-package adapters bridge via ``Canonical[self.name]``
+      (hb-strategy-framework and hb-market-connector hb_compat layers)
+
+    Do not introduce dependencies on ``.value``, and do not rename members --
+    a rename silently breaks every name-keyed bridge and orphans existing DB rows.
+    Enforced by tests/test_enum_wire_invariants.py.
+    """
+
     MARKET = 1
     LIMIT = 2
     LIMIT_MAKER = 3
@@ -89,6 +108,28 @@ class PriceType(Enum):
 
 
 class TradeType(Enum):
+    """Canonical trade side for the hb-* ecosystem.
+
+    Unlike OrderType, these integer values ARE load-bearing and must not change.
+    Hummingbot's order-book message format encodes the trade side numerically::
+
+        # connector/**/<exchange>_api_order_book_data_source.py  (writers)
+        "trade_type": float(TradeType.SELL.value) if ... else float(TradeType.BUY.value)
+
+        # core/data_type/order_book_tracker.py:697  (reader)
+        if trade_message.content["trade_type"] == float(TradeType.SELL.value)
+
+    As of 2026-08-12 this convention spans 55 sites across 43 files in hummingbot/:
+    54 float-wrapped, plus one bare-int writer at
+    ``connector/derivative/decibel_perpetual/decibel_perpetual_api_order_book_data_source.py:287``
+    which currently interoperates only because ``2 == 2.0``.
+
+    Converting this enum to StrEnum, or renumbering it, breaks all of them at
+    runtime with no type error, because ``float("buy")`` raises ValueError. Any
+    such change must migrate the order-book wire format first.
+    Enforced by tests/test_enum_wire_invariants.py.
+    """
+
     BUY = 1
     SELL = 2
     RANGE = 3
