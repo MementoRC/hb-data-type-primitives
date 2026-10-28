@@ -9,7 +9,7 @@ from ._trading_pair import combine_to_hb_trading_pair, split_hb_trading_pair
 from .common import PositionAction, TradeType
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ class TokenAmount:
     token: str
     amount: Decimal
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str | Decimal]:
         return iter((self.token, self.amount))
 
     def to_json(self) -> dict[str, Any]:
@@ -77,7 +77,7 @@ class TokenAmount:
         }
 
     @classmethod
-    def from_json(cls, data: dict[str, Any]):
+    def from_json(cls, data: dict[str, Any]) -> TokenAmount:
         instance = TokenAmount(token=data["token"], amount=Decimal(data["amount"]))
         return instance
 
@@ -102,10 +102,10 @@ class TradeFeeSchema:
     maker_fixed_fees: list[TokenAmount] = field(default_factory=list)
     taker_fixed_fees: list[TokenAmount] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.validate_schema()
 
-    def validate_schema(self):
+    def validate_schema(self) -> None:
         if self.percent_fee_token is not None:
             assert not self.buy_percent_fee_deducted_from_returns
         self.maker_percent_fee_decimal = Decimal(self.maker_percent_fee_decimal)
@@ -137,7 +137,7 @@ class TradeFeeBase(ABC):
     def type_descriptor_for_json(cls) -> str: ...
 
     @classmethod
-    def fee_class_for_type(cls, type_descriptor: str):
+    def fee_class_for_type(cls, type_descriptor: str) -> type[TradeFeeBase]:
         catalog = {
             fee_class.type_descriptor_for_json(): fee_class
             for fee_class in [AddedToCostTradeFee, DeductedFromReturnsTradeFee]
@@ -183,7 +183,7 @@ class TradeFeeBase(ABC):
         return fee_cls(percent=percent, percent_token=percent_token, flat_fees=flat_fees or [])
 
     @classmethod
-    def from_json(cls, data: dict[str, Any]):
+    def from_json(cls, data: dict[str, Any]) -> TradeFeeBase:
         fee_class = cls.fee_class_for_type(data["fee_type"])
         instance = fee_class(
             percent=Decimal(data["percent"]),
@@ -192,7 +192,7 @@ class TradeFeeBase(ABC):
         )
         return instance
 
-    def to_json(self) -> dict[str, any]:
+    def to_json(self) -> dict[str, Any]:
         return {
             "fee_type": self.type_descriptor_for_json(),
             "percent": str(self.percent),
@@ -201,7 +201,7 @@ class TradeFeeBase(ABC):
         }
 
     @property
-    def fee_asset(self):
+    def fee_asset(self) -> str | None:
         first_flat_fee_token = None
         if len(self.flat_fees) > 0:
             first_flat_fee_token = self.flat_fees[0].token
@@ -281,11 +281,11 @@ class TradeFeeBase(ABC):
                 fee_amount += flat_fee.amount * price
             else:
                 conversion_pair: str = combine_to_hb_trading_pair(base=flat_fee.token, quote=token)
-                conversion_rate: Decimal = self._get_exchange_rate(conversion_pair, rate_source)
+                conversion_rate = self._get_exchange_rate(conversion_pair, rate_source)
                 fee_amount += flat_fee.amount * conversion_rate
         return fee_amount
 
-    def _are_tokens_interchangeable(self, first_token: str, second_token: str):
+    def _are_tokens_interchangeable(self, first_token: str, second_token: str) -> bool:
         interchangeable_tokens = [
             {"WETH", "ETH"},
             {"WBNB", "BNB"},
@@ -372,7 +372,7 @@ class DeductedFromReturnsTradeFee(TradeFeeBase):
 
         Returns the impact of the fee on the expected returns from the candidate order.
         """
-        impact = order_candidate.potential_returns.amount * self.percent
+        impact: Decimal = order_candidate.potential_returns.amount * self.percent
         return impact
 
 

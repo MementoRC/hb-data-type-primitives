@@ -53,11 +53,11 @@ class TradeUpdate(NamedTuple):
     is_taker: bool = True  # CEXs deliver trade events from the taker's perspective
 
     @property
-    def fee_asset(self):
+    def fee_asset(self) -> str | None:
         return self.fee.fee_asset
 
     @classmethod
-    def from_json(cls, data: dict[str, Any]):
+    def from_json(cls, data: dict[str, Any]) -> "TradeUpdate":
         instance = TradeUpdate(
             trade_id=data["trade_id"],
             client_order_id=data["client_order_id"],
@@ -127,7 +127,7 @@ class InFlightOrder:
         self.check_processed_by_exchange_condition()
 
     @property
-    def attributes(self) -> tuple[Any]:
+    def attributes(self) -> tuple[Any, ...]:
         return copy.deepcopy(
             (
                 self.client_order_id,
@@ -151,11 +151,11 @@ class InFlightOrder:
         return type(self) is type(other) and self.attributes == other.attributes
 
     @property
-    def base_asset(self):
+    def base_asset(self) -> str:
         return self.trading_pair.split("-")[0]
 
     @property
-    def quote_asset(self):
+    def quote_asset(self) -> str:
         return self.trading_pair.split("-")[1]
 
     @property
@@ -295,11 +295,11 @@ class InFlightOrder:
             creation_timestamp=int(self.creation_timestamp * 1e6),
         )
 
-    def update_exchange_order_id(self, exchange_order_id: str):
+    def update_exchange_order_id(self, exchange_order_id: str) -> None:
         self.exchange_order_id = exchange_order_id
         self.exchange_order_id_update_event.set()
 
-    async def get_exchange_order_id(self):
+    async def get_exchange_order_id(self) -> str | None:
         if self.exchange_order_id is None:
             async with asyncio.timeout(GET_EX_ORDER_ID_TIMEOUT):
                 await self.exchange_order_id_update_event.wait()
@@ -377,18 +377,18 @@ class InFlightOrder:
 
         return True
 
-    def check_filled_condition(self):
+    def check_filled_condition(self) -> None:
         if (abs(self.amount) - self.executed_amount_base).quantize(Decimal("1e-8")) <= 0:
             self.completely_filled_event.set()
 
-    async def wait_until_completely_filled(self):
+    async def wait_until_completely_filled(self) -> None:
         await self.completely_filled_event.wait()
 
-    def check_processed_by_exchange_condition(self):
+    def check_processed_by_exchange_condition(self) -> None:
         if self.current_state.value > OrderState.PENDING_CREATE.value:
             self.processed_by_exchange_event.set()
 
-    async def wait_until_processed_by_exchange(self):
+    async def wait_until_processed_by_exchange(self) -> None:
         await self.processed_by_exchange_event.wait()
 
     def build_order_created_message(self) -> str:

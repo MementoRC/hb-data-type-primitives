@@ -30,7 +30,7 @@ class FundingInfo:
         return self._index_price
 
     @index_price.setter
-    def index_price(self, index_price):
+    def index_price(self, index_price: Decimal) -> None:
         self._index_price = index_price
 
     @property
@@ -38,7 +38,7 @@ class FundingInfo:
         return self._mark_price
 
     @mark_price.setter
-    def mark_price(self, mark_price):
+    def mark_price(self, mark_price: Decimal) -> None:
         self._mark_price = mark_price
 
     @property
@@ -46,7 +46,7 @@ class FundingInfo:
         return self._next_funding_utc_timestamp
 
     @next_funding_utc_timestamp.setter
-    def next_funding_utc_timestamp(self, next_funding_utc_timestamp):
+    def next_funding_utc_timestamp(self, next_funding_utc_timestamp: int) -> None:
         self._next_funding_utc_timestamp = next_funding_utc_timestamp
 
     @property
@@ -54,10 +54,10 @@ class FundingInfo:
         return self._rate
 
     @rate.setter
-    def rate(self, rate):
+    def rate(self, rate: Decimal) -> None:
         self._rate = rate
 
-    def update(self, info_update: "FundingInfoUpdate"):
+    def update(self, info_update: "FundingInfoUpdate") -> None:
         update_dict = asdict(info_update)
         update_dict.pop("trading_pair")
         for key, value in update_dict.items():
