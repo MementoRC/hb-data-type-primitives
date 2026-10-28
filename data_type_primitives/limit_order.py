@@ -5,10 +5,12 @@ Originally extracted from hummingbot.core.data_type.limit_order (.pyx) via PR A.
 
 import time
 from decimal import Decimal
-
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from .common import LimitOrderStatus, OrderType, PositionAction
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class LimitOrder:
@@ -132,7 +134,14 @@ class LimitOrder:
         mid_price: float = 0.0,
         hanging_ids: list[str] | None = None,
         end_time_order_age: int = 0,
-    ) -> pd.DataFrame:
+    ) -> "pd.DataFrame":
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "LimitOrder.to_pandas requires pandas; install hb-data-type-primitives[frames]"
+            ) from e
+
         buys = [o for o in limit_orders if o.is_buy]
         sells = [o for o in limit_orders if not o.is_buy]
         buys.sort(key=lambda x: x.price, reverse=True)
