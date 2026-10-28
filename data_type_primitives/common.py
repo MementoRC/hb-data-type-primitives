@@ -40,7 +40,7 @@ class OrderType(Enum):
     TAKE_PROFIT_LIMIT = 11
     TRAILING_STOP_LIMIT = 12
 
-    def is_limit_type(self):
+    def is_limit_type(self) -> bool:
         return self in (
             OrderType.LIMIT,
             OrderType.LIMIT_MAKER,
@@ -49,11 +49,11 @@ class OrderType(Enum):
             OrderType.TRAILING_STOP_LIMIT,
         )
 
-    def is_delayed_market_type(self):
+    def is_delayed_market_type(self) -> bool:
         """Returns True for conditional orders that trigger a market execution."""
         return self in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT, OrderType.TRAILING_STOP)
 
-    def is_conditional_type(self):
+    def is_conditional_type(self) -> bool:
         """Returns True for any conditional/triggered order type."""
         return self in (
             OrderType.STOP_LOSS,
@@ -156,14 +156,14 @@ _VT = TypeVar("_VT")
 
 
 class GroupedSetDict(dict[_KT, set[_VT]]):
-    def add_or_update(self, key: _KT, *args: _VT) -> "GroupedSetDict":
+    def add_or_update(self, key: _KT, *args: _VT) -> "GroupedSetDict[_KT, _VT]":
         if key in self:
             self[key].update(args)
         else:
             self[key] = set(args)
         return self
 
-    def remove(self, key: _KT, value: _VT) -> "GroupedSetDict":
+    def remove(self, key: _KT, value: _VT) -> "GroupedSetDict[_KT, _VT]":
         if key in self:
             self[key].discard(value)
             if not self[key]:  # If set becomes empty, remove the key
@@ -189,7 +189,7 @@ MarketDict = GroupedSetDict[str, set[str]]
 
 # TODO? : Allow pulling the hash for _KT via a lambda so that things like type can be a key?
 class LazyDict[KT, VT](dict[KT, VT]):
-    def __init__(self, default_value_factory: Callable[[KT], VT] = None):
+    def __init__(self, default_value_factory: Callable[[KT], VT] | None = None) -> None:
         super().__init__()
         self.default_value_factory = default_value_factory
 
@@ -199,7 +199,8 @@ class LazyDict[KT, VT](dict[KT, VT]):
         self[key] = self.default_value_factory(key)
         return self[key]
 
-    def get(self, key: KT) -> VT:
+    # Intentionally narrower than dict.get (no default arg; falls back to __missing__).
+    def get(self, key: KT) -> VT:  # type: ignore[override]
         if key in self:
             return self[key]
         return self.__missing__(key)
