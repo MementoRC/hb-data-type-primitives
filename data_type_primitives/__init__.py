@@ -33,7 +33,16 @@ from data_type_primitives.in_flight_order import (
     TradeUpdate,
 )
 from data_type_primitives.limit_order import LimitOrder
-from data_type_primitives.order_book import OrderBookEntry, OrderBookSnapshot
+from data_type_primitives.order_book import (
+    ClientOrderBookQueryResult,
+    ClientOrderBookRow,
+    OrderBookEntry,
+    OrderBookMessage,
+    OrderBookMessageType,
+    OrderBookQueryResult,
+    OrderBookRow,
+    OrderBookSnapshot,
+)
 from data_type_primitives.trade_fee import (
     AddedToCostTradeFee,
     DeductedFromReturnsTradeFee,
@@ -49,6 +58,8 @@ __all__ = [
     "ArgumentParserError",
     "CancellationResult",
     "CandleData",
+    "ClientOrderBookQueryResult",
+    "ClientOrderBookRow",
     "DeductedFromReturnsTradeFee",
     "FundingInfo",
     "FundingInfoUpdate",
@@ -66,6 +77,10 @@ __all__ = [
     "OpenOrder",
     "OracleRateUnavailable",
     "OrderBookEntry",
+    "OrderBookMessage",
+    "OrderBookMessageType",
+    "OrderBookQueryResult",
+    "OrderBookRow",
     "OrderBookSnapshot",
     "OrderState",
     "OrderType",
