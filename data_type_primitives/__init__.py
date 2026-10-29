@@ -2,6 +2,7 @@
 
 from data_type_primitives.__about__ import __version__
 from data_type_primitives.cancellation_result import CancellationResult
+from data_type_primitives.candle import CandleData
 from data_type_primitives.common import (
     GroupedSetDict,
     LazyDict,
@@ -32,6 +33,7 @@ from data_type_primitives.in_flight_order import (
     TradeUpdate,
 )
 from data_type_primitives.limit_order import LimitOrder
+from data_type_primitives.order_book import OrderBookEntry, OrderBookSnapshot
 from data_type_primitives.trade_fee import (
     AddedToCostTradeFee,
     DeductedFromReturnsTradeFee,
@@ -46,6 +48,7 @@ __all__ = [
     "AddedToCostTradeFee",
     "ArgumentParserError",
     "CancellationResult",
+    "CandleData",
     "DeductedFromReturnsTradeFee",
     "FundingInfo",
     "FundingInfoUpdate",
@@ -62,6 +65,8 @@ __all__ = [
     "MarketDict",
     "OpenOrder",
     "OracleRateUnavailable",
+    "OrderBookEntry",
+    "OrderBookSnapshot",
     "OrderState",
     "OrderType",
     "OrderUpdate",
