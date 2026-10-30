@@ -76,8 +76,9 @@ format-check = "ruff format --check data_type_primitives tests"
 typecheck = "mypy data_type_primitives"
 build = "hatchling build"
 coverage = "pytest tests/ --cov=data_type_primitives --cov-report=term-missing"
-quality = { depends-on = ["lint", "format-check", "typecheck"] }
-check = { depends-on = ["quality", "typecheck", "test"] }
+check-conda-first = "python scripts/check_conda_first.py"
+quality = { depends-on = ["check-conda-first", "lint", "format-check", "typecheck"] }
+check = { depends-on = ["check-conda-first", "quality", "typecheck", "test"] }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
