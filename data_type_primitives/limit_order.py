@@ -139,7 +139,8 @@ class LimitOrder:
             import pandas as pd
         except ImportError as e:
             raise ImportError(
-                "LimitOrder.to_pandas requires pandas; install hb-data-type-primitives[frames]"
+                "LimitOrder.to_pandas requires pandas; "
+                "install pandas from conda-forge (e.g. `pixi add pandas`)"
             ) from e
 
         buys = [o for o in limit_orders if o.is_buy]

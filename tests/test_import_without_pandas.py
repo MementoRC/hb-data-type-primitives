@@ -21,7 +21,7 @@ from data_type_primitives import LimitOrder
 try:
     LimitOrder.to_pandas([], 1.0)
 except ImportError as e:
-    assert 'frames' in str(e), str(e)
+    assert 'conda-forge' in str(e), str(e)
     sys.exit(0)
 sys.exit(1)
 """
