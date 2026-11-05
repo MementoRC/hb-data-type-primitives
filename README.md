@@ -19,11 +19,7 @@ models — used across Hummingbot sub-packages. It is a future sibling dependenc
 
 ## Installation
 
-```bash
-pip install hb-data-type-primitives
-```
-
-Or with pixi:
+Install from conda-forge with pixi:
 
 ```bash
 pixi add hb-data-type-primitives
