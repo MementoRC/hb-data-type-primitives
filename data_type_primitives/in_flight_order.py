@@ -1,16 +1,29 @@
 import asyncio
 import copy
-import importlib
 import logging
 import math
+from collections.abc import Callable
 from decimal import Decimal
 from enum import Enum
 from typing import Any, NamedTuple
 
 from .common import OrderType, PositionAction, TradeType
+from .limit_order import LimitOrder
 from .trade_fee import TradeFeeBase
 
 _logger = logging.getLogger(__name__)
+
+# Optional LimitOrder factory. L0 purity forbids importing hummingbot's Cython LimitOrder
+# here, so the full runtime opts in by registering its class, e.g.:
+#     set_limit_order_factory(hummingbot.core.data_type.limit_order.LimitOrder)
+_limit_order_factory: Callable[..., Any] | None = None
+
+
+def set_limit_order_factory(factory: Callable[..., Any] | None) -> None:
+    """Register (or clear) the factory used by InFlightOrder.to_limit_order()."""
+    global _limit_order_factory
+    _limit_order_factory = factory
+
 
 s_decimal_0 = Decimal("0")
 
@@ -277,11 +290,10 @@ class InFlightOrder:
         Returns this InFlightOrder as a LimitOrder object.
         :return: LimitOrder object.
 
-        NOTE: LimitOrder is a Cython extension type available only in the full hummingbot runtime.
-        This method is preserved for API compatibility but will raise ImportError in standalone use.
+        By default this is the package's own LimitOrder. A host application (e.g. hummingbot's
+        Cython LimitOrder) may inject its own class via set_limit_order_factory().
         """
-        limit_order_module = importlib.import_module("hummingbot.core.data_type.limit_order")
-        limit_order_cls = limit_order_module.LimitOrder
+        limit_order_cls: Callable[..., Any] = _limit_order_factory or LimitOrder
 
         return limit_order_cls(
             client_order_id=self.client_order_id,

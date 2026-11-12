@@ -31,6 +31,7 @@ from data_type_primitives.in_flight_order import (
     OrderUpdate,
     PerpetualDerivativeInFlightOrder,
     TradeUpdate,
+    set_limit_order_factory,
 )
 from data_type_primitives.limit_order import LimitOrder
 from data_type_primitives.order_book import (
@@ -95,4 +96,5 @@ __all__ = [
     "TradeFeeSchema",
     "TradeType",
     "TradeUpdate",
+    "set_limit_order_factory",
 ]
