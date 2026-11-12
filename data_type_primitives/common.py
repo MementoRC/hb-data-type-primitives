@@ -151,6 +151,19 @@ class LimitOrderStatus(Enum):
     FAILED = 6
 
 
+class NetworkStatus(Enum):
+    """Canonical L0 network status, mirroring hummingbot.core.network_iterator.NetworkStatus.
+
+    hb_compat layers must re-export this class rather than redefine it, so that
+    identity (``is``/``isinstance``/``==``) holds across packages. Member names and
+    integer values are load-bearing and must not change.
+    """
+
+    STOPPED = 0
+    NOT_CONNECTED = 1
+    CONNECTED = 2
+
+
 _KT = TypeVar("_KT")
 _VT = TypeVar("_VT")
 
