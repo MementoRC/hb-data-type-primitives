@@ -6,7 +6,9 @@ TradeType class docstrings in data_type_primitives/common.py for full rationale.
 
 import pytest
 
-from data_type_primitives.common import OrderType, TradeType
+import data_type_primitives.common as common_module
+from data_type_primitives import NetworkStatus as PackageNetworkStatus
+from data_type_primitives.common import NetworkStatus, OrderType, TradeType
 
 EXPECTED_ORDER_TYPE_NAMES = frozenset(
     {
@@ -82,3 +84,29 @@ def test_name_lookup_is_the_supported_api() -> None:
         assert OrderType[member.name] is member
     for member in TradeType:
         assert TradeType[member.name] is member
+
+
+# --- NetworkStatus: canonical L0 enum mirrored from hummingbot.core.network_iterator ---
+
+
+@pytest.mark.unit
+def test_network_status_members_and_values_are_pinned() -> None:
+    """hb_compat layers re-export this class; names and values must match the parent enum."""
+    assert [member.name for member in NetworkStatus] == ["STOPPED", "NOT_CONNECTED", "CONNECTED"]
+    assert {member.name: member.value for member in NetworkStatus} == {
+        "STOPPED": 0,
+        "NOT_CONNECTED": 1,
+        "CONNECTED": 2,
+    }
+
+
+@pytest.mark.unit
+def test_network_status_is_plain_enum_not_int() -> None:
+    """IntEnum would make NetworkStatus compare equal to plain ints; the parent is a plain Enum."""
+    assert not issubclass(NetworkStatus, int)
+
+
+@pytest.mark.unit
+def test_network_status_identity_is_shared_across_import_paths() -> None:
+    """Re-exports must be the same object, not a redefinition, for is/isinstance/== to hold."""
+    assert PackageNetworkStatus is common_module.NetworkStatus
