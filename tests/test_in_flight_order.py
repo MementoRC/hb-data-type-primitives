@@ -14,7 +14,14 @@ from data_type_primitives.in_flight_order import (
     PerpetualDerivativeInFlightOrder,
     TradeUpdate,
 )
+from data_type_primitives.limit_order import LimitOrder
 from data_type_primitives.trade_fee import AddedToCostTradeFee, TokenAmount
+
+
+@pytest.fixture(autouse=True)
+def _reset_limit_order_factory():
+    yield
+    data_type_primitives.set_limit_order_factory(None)
 
 
 def _make_order(
@@ -140,10 +147,63 @@ def test_cumulative_fee_paid_uses_stdlib_logger_on_error(caplog: pytest.LogCaptu
 
     with caplog.at_level(logging.ERROR, logger="data_type_primitives.in_flight_order"):
         # cumulative_fee_paid triggers fee_amount_in_token which calls _get_exchange_rate
-        # which does a lazy import of hummingbot.core.rate_oracle — not available in sub-pkg,
-        # so it will raise ImportError, which cumulative_fee_paid catches and logs.
+        # which raises ValueError when no default rate source provider is registered
+        # (see set_default_rate_source_provider), and cumulative_fee_paid catches and logs it.
         result = order.cumulative_fee_paid("ETH")
 
     assert result == Decimal("0")
     # Confirm at least one log record was emitted via stdlib (not a crash)
     assert any("Error calculating fee paid" in r.message for r in caplog.records)
+
+
+@pytest.mark.unit
+def test_to_limit_order_default_returns_package_limit_order() -> None:
+    order = _make_order()
+    result = order.to_limit_order()
+
+    assert isinstance(result, LimitOrder)
+    assert result.client_order_id == "OID-1"
+    assert result.trading_pair == "ETH-USDT"
+    assert result.is_buy is True
+    assert result.base_currency == "ETH"
+    assert result.quote_currency == "USDT"
+    assert result.price == Decimal("2000.0")
+    assert result.quantity == Decimal("1.0")
+    assert result.filled_quantity == order.executed_amount_base
+    assert result.creation_timestamp == int(1_000_000.0 * 1e6)
+
+
+@pytest.mark.unit
+def test_to_limit_order_uses_registered_factory() -> None:
+    calls: list[dict] = []
+    sentinel = object()
+
+    def stub(**kwargs):
+        calls.append(kwargs)
+        return sentinel
+
+    data_type_primitives.set_limit_order_factory(stub)
+    order = _make_order()
+
+    assert order.to_limit_order() is sentinel
+    assert calls == [
+        {
+            "client_order_id": "OID-1",
+            "trading_pair": "ETH-USDT",
+            "is_buy": True,
+            "base_currency": "ETH",
+            "quote_currency": "USDT",
+            "price": Decimal("2000.0"),
+            "quantity": Decimal("1.0"),
+            "filled_quantity": order.executed_amount_base,
+            "creation_timestamp": int(1_000_000.0 * 1e6),
+        }
+    ]
+
+
+@pytest.mark.unit
+def test_set_limit_order_factory_none_restores_default() -> None:
+    data_type_primitives.set_limit_order_factory(lambda **_: object())
+    data_type_primitives.set_limit_order_factory(None)
+
+    assert isinstance(_make_order().to_limit_order(), LimitOrder)
