@@ -18,12 +18,19 @@ from data_type_primitives.common import (
     PriceType,
     TradeType,
 )
+from data_type_primitives.data_requirement import DataRequirement
 from data_type_primitives.exceptions import (
     ArgumentParserError,
     HummingbotBaseException,
     InvalidController,
     InvalidScriptModule,
     OracleRateUnavailable,
+)
+from data_type_primitives.executor_actions import (
+    CreateExecutorAction,
+    StopExecutorAction,
+    StoreExecutorAction,
+    UpdateExecutorAction,
 )
 from data_type_primitives.funding_info import FundingInfo, FundingInfoUpdate
 from data_type_primitives.in_flight_order import (
@@ -35,6 +42,7 @@ from data_type_primitives.in_flight_order import (
     set_limit_order_factory,
 )
 from data_type_primitives.limit_order import LimitOrder
+from data_type_primitives.notification import ExecutorNotification
 from data_type_primitives.order_book import (
     ClientOrderBookQueryResult,
     ClientOrderBookRow,
@@ -45,6 +53,10 @@ from data_type_primitives.order_book import (
     OrderBookRow,
     OrderBookSnapshot,
 )
+from data_type_primitives.percent import PercentData
+from data_type_primitives.strategy_enums import CloseType, RunnableStatus
+from data_type_primitives.strategy_enums import OrderType as StrategyOrderType
+from data_type_primitives.strategy_enums import TradeType as StrategyTradeType
 from data_type_primitives.trade_fee import (
     AddedToCostTradeFee,
     DeductedFromReturnsTradeFee,
@@ -53,6 +65,9 @@ from data_type_primitives.trade_fee import (
     TradeFeeBase,
     TradeFeeSchema,
 )
+from data_type_primitives.trading_rules import TradingRules
+from data_type_primitives.trailing_stop import TrailingStop
+from data_type_primitives.triple_barrier import TripleBarrierConfig
 
 __all__ = [
     "__version__",
@@ -62,7 +77,11 @@ __all__ = [
     "CandleData",
     "ClientOrderBookQueryResult",
     "ClientOrderBookRow",
+    "CloseType",
+    "CreateExecutorAction",
+    "DataRequirement",
     "DeductedFromReturnsTradeFee",
+    "ExecutorNotification",
     "FundingInfo",
     "FundingInfoUpdate",
     "GroupedSetDict",
@@ -88,15 +107,25 @@ __all__ = [
     "OrderState",
     "OrderType",
     "OrderUpdate",
+    "PercentData",
     "PositionAction",
     "PositionMode",
     "PositionSide",
     "PerpetualDerivativeInFlightOrder",
     "PriceType",
+    "RunnableStatus",
+    "StopExecutorAction",
+    "StoreExecutorAction",
+    "StrategyOrderType",
+    "StrategyTradeType",
     "TokenAmount",
     "TradeFeeBase",
     "TradeFeeSchema",
     "TradeType",
     "TradeUpdate",
+    "TradingRules",
+    "TrailingStop",
+    "TripleBarrierConfig",
+    "UpdateExecutorAction",
     "set_limit_order_factory",
 ]
