@@ -81,6 +81,88 @@ def test_filled_state_is_filled_even_if_executed_below_amount() -> None:
     assert order.is_done is True
 
 
+def _make_unknown_order() -> InFlightOrder:
+    return InFlightOrder(
+        client_order_id="OID-1",
+        trading_pair="ETH-USDT",
+        order_type=OrderType.LIMIT,
+        trade_type=TradeType.BUY,
+        amount=Decimal("1.0"),
+        creation_timestamp=1_000_000.0,
+        price=Decimal("2000.0"),
+        initial_state=OrderState.UNKNOWN,
+    )
+
+
+def _order_update(new_state: OrderState) -> OrderUpdate:
+    return OrderUpdate(
+        trading_pair="ETH-USDT",
+        update_timestamp=1_000_001.0,
+        new_state=new_state,
+        client_order_id="OID-1",
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_unknown_state_value_and_existing_values_unchanged() -> None:
+    assert OrderState.UNKNOWN.value == 11
+    assert {m.name: m.value for m in OrderState if m is not OrderState.UNKNOWN} == {
+        "PENDING_CREATE": 0,
+        "OPEN": 1,
+        "PENDING_CANCEL": 2,
+        "CANCELED": 3,
+        "PARTIALLY_FILLED": 4,
+        "FILLED": 5,
+        "FAILED": 6,
+        "PENDING_APPROVAL": 7,
+        "APPROVED": 8,
+        "CREATED": 9,
+        "COMPLETED": 10,
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_unknown_order_is_open_but_not_done_or_terminal() -> None:
+    order = _make_unknown_order()
+    assert order.current_state == OrderState.UNKNOWN
+    assert order.is_open is True
+    assert order.is_done is False
+    assert order.is_pending_create is False
+    assert order.is_failure is False
+    assert order.is_cancelled is False
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_unknown_order_is_not_processed_by_exchange() -> None:
+    order = _make_unknown_order()
+    assert not order.processed_by_exchange_event.is_set()
+    order.update_with_order_update(_order_update(OrderState.UNKNOWN))
+    assert not order.processed_by_exchange_event.is_set()
+    order.update_with_order_update(_order_update(OrderState.OPEN))
+    assert order.processed_by_exchange_event.is_set()
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_unknown_order_update_does_not_set_processed_event() -> None:
+    order = _make_order()
+    order.update_with_order_update(_order_update(OrderState.UNKNOWN))
+    assert order.current_state == OrderState.UNKNOWN
+    assert not order.processed_by_exchange_event.is_set()
+    order.update_with_order_update(_order_update(OrderState.OPEN))
+    assert order.processed_by_exchange_event.is_set()
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_unknown_order_json_round_trip() -> None:
+    restored = InFlightOrder.from_json(_make_unknown_order().to_json())
+    assert restored.current_state == OrderState.UNKNOWN
+
+
 @pytest.mark.unit
 def test_in_flight_order_classes_importable_from_package() -> None:
     """All in_flight_order classes are accessible from the top-level package."""

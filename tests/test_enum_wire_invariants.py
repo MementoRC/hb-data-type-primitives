@@ -9,6 +9,7 @@ import pytest
 import data_type_primitives.common as common_module
 from data_type_primitives import NetworkStatus as PackageNetworkStatus
 from data_type_primitives.common import NetworkStatus, OrderType, TradeType
+from data_type_primitives.in_flight_order import OrderState
 
 EXPECTED_ORDER_TYPE_NAMES = frozenset(
     {
@@ -84,6 +85,28 @@ def test_name_lookup_is_the_supported_api() -> None:
         assert OrderType[member.name] is member
     for member in TradeType:
         assert TradeType[member.name] is member
+
+
+# --- OrderState: persisted as str(value) in InFlightOrder.to_json "last_state" ---
+
+
+@pytest.mark.unit
+def test_order_state_name_value_mapping_is_pinned() -> None:
+    """Persisted last_state is the numeric value; values must not drift."""
+    assert {member.name: member.value for member in OrderState} == {
+        "PENDING_CREATE": 0,
+        "OPEN": 1,
+        "PENDING_CANCEL": 2,
+        "CANCELED": 3,
+        "PARTIALLY_FILLED": 4,
+        "FILLED": 5,
+        "FAILED": 6,
+        "PENDING_APPROVAL": 7,
+        "APPROVED": 8,
+        "CREATED": 9,
+        "COMPLETED": 10,
+        "UNKNOWN": 11,
+    }
 
 
 # --- NetworkStatus: canonical L0 enum mirrored from hummingbot.core.network_iterator ---

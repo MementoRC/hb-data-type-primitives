@@ -41,6 +41,7 @@ class OrderState(Enum):
     APPROVED = 8
     CREATED = 9
     COMPLETED = 10
+    UNKNOWN = 11  # dtp-only addition (see docs/divergences.md)
 
 
 class OrderUpdate(NamedTuple):
@@ -185,6 +186,7 @@ class InFlightOrder:
             OrderState.OPEN,
             OrderState.PARTIALLY_FILLED,
             OrderState.PENDING_CANCEL,
+            OrderState.UNKNOWN,
         }
 
     @property
@@ -391,7 +393,10 @@ class InFlightOrder:
         await self.completely_filled_event.wait()
 
     def check_processed_by_exchange_condition(self) -> None:
-        if self.current_state.value > OrderState.PENDING_CREATE.value:
+        if (
+            self.current_state != OrderState.UNKNOWN
+            and self.current_state.value > OrderState.PENDING_CREATE.value
+        ):
             self.processed_by_exchange_event.set()
 
     async def wait_until_processed_by_exchange(self) -> None:
