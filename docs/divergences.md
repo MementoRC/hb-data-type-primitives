@@ -12,6 +12,8 @@ and deliberately does not reproduce core defects. Tests asserting a divergence c
 |---|---|---|---|
 | 1 | `OrderBookMessage.__hash__` hashes the tuple `(type, id)` | `order_book_message.py:82` | Core calls `hash(a, b, c)`, which always raises `TypeError`. |
 | 2 | `OrderBookMessage.__lt__` / `__eq__` are strict (irreflexive, consistent) | `order_book_message.py:75-79`, `:84-93` | In `__lt__` the trailing `or self.has_update_id` sits outside the equal-timestamp branch, so a snapshot or diff is `<` anything. `restore_from_snapshot_and_diffs` (`order_book.pyx:479`) then gets `bisect_right == 0` and replays stale diffs. `__eq__` falls through to `trade_id` (-1 == -1), so DIFFs with different `update_id` compare equal. |
+| 3 | `InFlightOrder.is_filled` / `is_done` use an exact Decimal comparison (`executed_amount_base >= amount`), so dust remainders are no longer reported filled/done | `in_flight_order.py` `is_filled` / `is_done` | Core uses float `math.isclose` (rel_tol 1e-9) on Decimal amounts, which misreports partially filled orders (hb-data-type-primitives#47, reported by hb-market-connector#211). |
+| 4 | dtp-only `OrderState.UNKNOWN = 11` (open, not done, not processed by exchange) | `in_flight_order.py` `OrderState` / `is_open` / `check_processed_by_exchange_condition` | Core has no state for an order whose create response was lost; it fails it, so a possibly-live order can be re-placed (hb-data-type-primitives#48, requested by hb-market-connector#214). Core code with explicit state lists (`client_order_tracker`) does not know it, and persisted `last_state=11` is unreadable by non-dtp hummingbot. |
 
 ## Draft core bug report (not filed)
 
