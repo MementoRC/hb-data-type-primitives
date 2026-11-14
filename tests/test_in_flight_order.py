@@ -42,6 +42,46 @@ def _make_order(
 
 
 @pytest.mark.unit
+@pytest.mark.divergence  # core uses float math.isclose (rel_tol 1e-9) on Decimal amounts
+def test_dust_remainder_is_not_filled_or_done() -> None:
+    order = _make_order(amount=Decimal("0.1"))
+    order.current_state = OrderState.OPEN
+    order.executed_amount_base = Decimal("0.1") - Decimal("1e-12")
+    assert order.is_filled is False
+    assert order.is_done is False
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_exact_fill_is_filled_and_done() -> None:
+    order = _make_order(amount=Decimal("0.1"))
+    order.current_state = OrderState.OPEN
+    order.executed_amount_base = Decimal("0.1")
+    assert order.is_filled is True
+    assert order.is_done is True
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_overfill_is_filled_and_done() -> None:
+    order = _make_order(amount=Decimal("0.1"))
+    order.current_state = OrderState.OPEN
+    order.executed_amount_base = Decimal("0.2")
+    assert order.is_filled is True
+    assert order.is_done is True
+
+
+@pytest.mark.unit
+@pytest.mark.divergence
+def test_filled_state_is_filled_even_if_executed_below_amount() -> None:
+    order = _make_order(amount=Decimal("0.1"))
+    order.current_state = OrderState.FILLED
+    order.executed_amount_base = Decimal("0.05")
+    assert order.is_filled is True
+    assert order.is_done is True
+
+
+@pytest.mark.unit
 def test_in_flight_order_classes_importable_from_package() -> None:
     """All in_flight_order classes are accessible from the top-level package."""
     assert data_type_primitives.InFlightOrder is InFlightOrder

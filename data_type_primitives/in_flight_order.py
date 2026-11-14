@@ -1,7 +1,6 @@
 import asyncio
 import copy
 import logging
-import math
 from collections.abc import Callable
 from decimal import Decimal
 from enum import Enum
@@ -192,18 +191,13 @@ class InFlightOrder:
     def is_done(self) -> bool:
         return (
             self.current_state in {OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED}
-            or math.isclose(self.executed_amount_base, self.amount)
             or self.executed_amount_base >= self.amount
         )
 
     @property
     def is_filled(self) -> bool:
         return self.current_state == OrderState.FILLED or (
-            self.amount != s_decimal_0
-            and (
-                math.isclose(self.executed_amount_base, self.amount)
-                or self.executed_amount_base >= self.amount
-            )
+            self.amount != s_decimal_0 and self.executed_amount_base >= self.amount
         )
 
     @property
