@@ -226,3 +226,47 @@ class LinkedOrderSpec(BaseModel):
             LegRole.OCO_LEG: 3,
         }
         return tuple(sorted(self.legs, key=lambda leg: rank[leg.role]))
+
+
+class CancelOutcome(StrEnum):
+    """Per-leg result of cancelling one leg of a linked-order group.
+
+    Unlike ``CancellationResult`` (which pairs an order id with a success flag),
+    this is a bare outcome with no order id, and it distinguishes an order that
+    was already filled, one the venue does not know, and one whose state could
+    not be determined.
+    """
+
+    CANCELED = "canceled"
+    ALREADY_FILLED = "already_filled"
+    NOT_FOUND = "not_found"
+    UNKNOWN = "unknown"
+
+
+class LinkedCancelOutcome(BaseModel):
+    """Immutable result of cancelling a whole linked-order group.
+
+    ``leg_outcomes`` must be non-empty and follows the order of
+    ``LinkedOrderSpec.ordered_legs()``. A ``None`` entry means that leg was never
+    submitted. ``residual_filled`` is the amount filled while cancelling (>= 0).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    group_id: str
+    all_legs_terminal: bool
+    residual_filled: Decimal = Field(ge=0)
+    leg_outcomes: tuple[CancelOutcome | None, ...]
+
+    @field_validator("residual_filled", mode="before")
+    @classmethod
+    def _coerce_decimal(cls, v: object) -> Decimal:
+        return _to_decimal(v)
+
+    @field_validator("leg_outcomes")
+    @classmethod
+    def _non_empty(cls, v: tuple[CancelOutcome | None, ...]) -> tuple[CancelOutcome | None, ...]:
+        if not v:
+            msg = "leg_outcomes must not be empty"
+            raise ValueError(msg)
+        return v
