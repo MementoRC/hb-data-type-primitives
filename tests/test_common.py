@@ -125,3 +125,59 @@ def test_grouped_set_dict_add_and_remove() -> None:
 def test_lazy_dict_default_factory() -> None:
     d: LazyDict[str, list] = LazyDict(default_value_factory=lambda k: [k])
     assert d["missing"] == ["missing"]
+
+
+@pytest.mark.unit
+def test_grouped_set_dict_add_or_update_merges_existing_key() -> None:
+    d: GroupedSetDict[str, str] = GroupedSetDict()
+    assert d.add_or_update("k", "a") is d
+    d.add_or_update("k", "b", "a")
+    assert d["k"] == {"a", "b"}
+
+
+@pytest.mark.unit
+def test_grouped_set_dict_remove_missing_key_or_value_is_noop() -> None:
+    d: GroupedSetDict[str, str] = GroupedSetDict()
+    d.add_or_update("k", "a")
+    assert d.remove("absent", "a") is d
+    d.remove("k", "zzz")
+    assert d == {"k": {"a"}}
+
+
+@pytest.mark.unit
+def test_grouped_set_dict_pydantic_validation() -> None:
+    from pydantic import TypeAdapter
+
+    result = TypeAdapter(GroupedSetDict).validate_python({"k": ["a", "b"]})
+    assert isinstance(result, GroupedSetDict)
+    assert result == {"k": {"a", "b"}}
+
+
+@pytest.mark.unit
+def test_lazy_dict_without_factory_raises_key_error() -> None:
+    d: LazyDict[str, int] = LazyDict()
+    with pytest.raises(KeyError, match="no default value factory"):
+        d["x"]
+
+
+@pytest.mark.unit
+def test_lazy_dict_get_returns_existing_or_creates_via_factory() -> None:
+    calls: list[str] = []
+
+    def factory(key: str) -> int:
+        calls.append(key)
+        return len(key)
+
+    d: LazyDict[str, int] = LazyDict(default_value_factory=factory)
+    d["abc"] = 99
+    assert d.get("abc") == 99
+    assert d.get("xy") == 2
+    assert d["xy"] == 2
+    assert calls == ["xy"]
+
+
+@pytest.mark.unit
+def test_lazy_dict_get_or_add_only_calls_factory_when_absent() -> None:
+    d: LazyDict[str, int] = LazyDict()
+    assert d.get_or_add("a", lambda: 1) == 1
+    assert d.get_or_add("a", lambda: 2) == 1
