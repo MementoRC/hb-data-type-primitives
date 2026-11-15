@@ -319,6 +319,11 @@ class AddedToCostTradeFee(TradeFeeBase):
         """
         ret = None
         if self.percent != S_DECIMAL_0:
+            if self.percent_token is None and order_candidate.order_collateral is None:
+                raise ValueError(
+                    "cannot determine fee token: percent_token is not set and "
+                    "order candidate has no order_collateral"
+                )
             fee_token = self.percent_token or order_candidate.order_collateral.token
             if (
                 order_candidate.order_collateral is None
