@@ -145,4 +145,4 @@ class TestExports:
         assert name in dtp.__all__
 
     def test_version(self):
-        assert dtp.__version__ == "0.12.0"
+        assert dtp.__version__ == "0.13.0"

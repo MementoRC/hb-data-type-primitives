@@ -48,6 +48,7 @@ from data_type_primitives.linked_order_spec import (
     LegRole,
     LegSpec,
     LinkedCancelOutcome,
+    LinkedCancelStatus,
     LinkedOrderSpec,
     LinkKind,
 )
@@ -112,6 +113,7 @@ __all__ = [
     "LimitOrderStatus",
     "LinkKind",
     "LinkedCancelOutcome",
+    "LinkedCancelStatus",
     "LinkedOrderSpec",
     "LPType",
     "MakerTakerExchangeFeeRates",

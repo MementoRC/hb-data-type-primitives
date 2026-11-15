@@ -243,12 +243,39 @@ class CancelOutcome(StrEnum):
     UNKNOWN = "unknown"
 
 
+class LinkedCancelStatus(StrEnum):
+    """Venue-neutral terminal status of cancelling a whole linked-order group.
+
+    Unlike ``CancelOutcome`` (per leg), this describes the group as a whole
+    (per group). It has no emulation lifecycle states; those belong to the
+    emulation layer, not to this venue-neutral value.
+    """
+
+    # The cancel was accepted, but not every leg is terminal yet.
+    PENDING = "pending"
+    # Every leg is terminal and the cancel ended the group. A partial fill before
+    # that is still CANCELED; it is reported in ``residual_filled``.
+    CANCELED = "canceled"
+    # The group's linked logic finished through a fill before the cancel took
+    # effect (an OCO winner, or a bracket exit filled).
+    FILLED = "filled"
+    # The group ended through a rejection or a placement failure.
+    FAILED = "failed"
+    # The venue cannot say how the group ended.
+    UNKNOWN = "unknown"
+
+
 class LinkedCancelOutcome(BaseModel):
     """Immutable result of cancelling a whole linked-order group.
 
     ``leg_outcomes`` must be non-empty and follows the order of
     ``LinkedOrderSpec.ordered_legs()``. A ``None`` entry means that leg was never
     submitted. ``residual_filled`` is the amount filled while cancelling (>= 0).
+
+    ``status`` is the group-level status. ``None`` means the producer did not
+    report a status; this keeps v0.12.0 payloads valid. ``PENDING`` requires
+    ``all_legs_terminal`` to be False, and ``all_legs_terminal`` False allows only
+    ``None``, ``PENDING`` or ``UNKNOWN``.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -257,6 +284,7 @@ class LinkedCancelOutcome(BaseModel):
     all_legs_terminal: bool
     residual_filled: Decimal = Field(ge=0)
     leg_outcomes: tuple[CancelOutcome | None, ...]
+    status: LinkedCancelStatus | None = None
 
     @field_validator("residual_filled", mode="before")
     @classmethod
@@ -270,3 +298,21 @@ class LinkedCancelOutcome(BaseModel):
             msg = "leg_outcomes must not be empty"
             raise ValueError(msg)
         return v
+
+    @model_validator(mode="after")
+    def _validate_status(self) -> LinkedCancelOutcome:
+        status = self.status
+        if status == LinkedCancelStatus.PENDING and self.all_legs_terminal:
+            msg = "status PENDING requires all_legs_terminal to be False"
+            raise ValueError(msg)
+        if not self.all_legs_terminal and status not in (
+            None,
+            LinkedCancelStatus.PENDING,
+            LinkedCancelStatus.UNKNOWN,
+        ):
+            msg = (
+                f"all_legs_terminal is False: status must be None, PENDING or UNKNOWN, "
+                f"got {status.name}"
+            )
+            raise ValueError(msg)
+        return self
