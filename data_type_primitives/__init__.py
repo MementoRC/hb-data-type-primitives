@@ -44,8 +44,10 @@ from data_type_primitives.in_flight_order import (
 )
 from data_type_primitives.limit_order import LimitOrder
 from data_type_primitives.linked_order_spec import (
+    CancelOutcome,
     LegRole,
     LegSpec,
+    LinkedCancelOutcome,
     LinkedOrderSpec,
     LinkKind,
 )
@@ -86,6 +88,7 @@ __all__ = [
     "__version__",
     "AddedToCostTradeFee",
     "ArgumentParserError",
+    "CancelOutcome",
     "CancellationResult",
     "CandleData",
     "ClientOrderBookQueryResult",
@@ -108,6 +111,7 @@ __all__ = [
     "LimitOrder",
     "LimitOrderStatus",
     "LinkKind",
+    "LinkedCancelOutcome",
     "LinkedOrderSpec",
     "LPType",
     "MakerTakerExchangeFeeRates",

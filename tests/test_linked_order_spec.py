@@ -7,8 +7,10 @@ from pydantic import ValidationError
 
 from data_type_primitives.common import OrderType, TradeType
 from data_type_primitives.linked_order_spec import (
+    CancelOutcome,
     LegRole,
     LegSpec,
+    LinkedCancelOutcome,
     LinkedOrderSpec,
     LinkKind,
 )
@@ -392,6 +394,81 @@ class TestFrozenAndRoundTrip:
     def test_oco_round_trip(self):
         spec = oco_spec(oco(), oco(ot=OT.STOP_LOSS))
         assert LinkedOrderSpec.model_validate_json(spec.model_dump_json()) == spec
+
+
+def lco(**kw) -> LinkedCancelOutcome:
+    base = {
+        "group_id": "g1",
+        "all_legs_terminal": True,
+        "residual_filled": "0",
+        "leg_outcomes": (CancelOutcome.CANCELED, CancelOutcome.ALREADY_FILLED),
+    }
+    base.update(kw)
+    return LinkedCancelOutcome(**base)
+
+
+class TestCancelOutcome:
+    def test_values(self):
+        assert {m.name: m.value for m in CancelOutcome} == {
+            "CANCELED": "canceled",
+            "ALREADY_FILLED": "already_filled",
+            "NOT_FOUND": "not_found",
+            "UNKNOWN": "unknown",
+        }
+
+    def test_is_str(self):
+        assert all(isinstance(m, str) for m in CancelOutcome)
+        assert CancelOutcome.CANCELED == "canceled"
+
+
+class TestLinkedCancelOutcome:
+    def test_valid(self):
+        o = lco(residual_filled="1.5")
+        assert o.group_id == "g1"
+        assert o.all_legs_terminal is True
+        assert o.residual_filled == Decimal("1.5")
+        assert o.leg_outcomes == (CancelOutcome.CANCELED, CancelOutcome.ALREADY_FILLED)
+
+    @pytest.mark.parametrize("residual", [-1, "-0.01"])
+    def test_rejects_negative_residual(self, residual):
+        with pytest.raises(ValidationError, match="residual_filled"):
+            lco(residual_filled=residual)
+
+    def test_rejects_empty_leg_outcomes(self):
+        with pytest.raises(ValidationError, match="leg_outcomes"):
+            lco(leg_outcomes=())
+
+    def test_rejects_int_group_id(self):
+        with pytest.raises(ValidationError, match="group_id"):
+            lco(group_id=1)
+
+    def test_none_entries_allowed(self):
+        o = lco(leg_outcomes=(CancelOutcome.CANCELED, None, None))
+        assert o.leg_outcomes[1:] == (None, None)
+
+    def test_frozen(self):
+        o = lco()
+        with pytest.raises(ValidationError):
+            o.group_id = "g2"
+        with pytest.raises(ValidationError):
+            o.residual_filled = Decimal(1)
+
+    def test_python_round_trip(self):
+        o = lco(residual_filled="2.5", leg_outcomes=(CancelOutcome.UNKNOWN, None))
+        assert LinkedCancelOutcome.model_validate(o.model_dump()) == o
+
+    def test_json_round_trip(self):
+        o = lco(residual_filled="2.5", leg_outcomes=(CancelOutcome.NOT_FOUND, None))
+        assert LinkedCancelOutcome.model_validate_json(o.model_dump_json()) == o
+        assert LinkedCancelOutcome.model_validate(o.model_dump(mode="json")) == o
+
+
+def test_cancel_types_exported_from_root():
+    import data_type_primitives as dtp
+
+    for name in ("CancelOutcome", "LinkedCancelOutcome"):
+        assert name in dtp.__all__
+        assert hasattr(dtp, name)
 
 
 def test_exports():
