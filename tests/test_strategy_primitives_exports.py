@@ -20,6 +20,10 @@ NEW_NAMES = [
     "TripleBarrierConfig",
     "StrategyTradeType",
     "StrategyOrderType",
+    "TriggerKind",
+    "TriggerReference",
+    "TrailSpec",
+    "TriggerSpec",
 ]
 
 

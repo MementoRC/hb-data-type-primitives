@@ -67,6 +67,13 @@ class OrderType(StrEnum):
     LIMIT = "limit"
     MARKET = "market"
     LIMIT_MAKER = "limit_maker"
+    # Conditional order types; names must match the canonical enum.
+    STOP_LOSS = "stop_loss"
+    TAKE_PROFIT = "take_profit"
+    TRAILING_STOP = "trailing_stop"
+    STOP_LOSS_LIMIT = "stop_loss_limit"
+    TAKE_PROFIT_LIMIT = "take_profit_limit"
+    TRAILING_STOP_LIMIT = "trailing_stop_limit"
 
     def to_canonical(self) -> CanonicalOrderType:
         """Map to the canonical ``data_type_primitives`` enum member."""
@@ -76,9 +83,8 @@ class OrderType(StrEnum):
     def from_canonical(cls, value: CanonicalOrderType) -> "OrderType":
         """Build from a canonical ``data_type_primitives`` enum member.
 
-        Only ``MARKET``, ``LIMIT``, and ``LIMIT_MAKER`` are representable;
-        other canonical members (AMM/conditional order types) have no
-        equivalent here and raise ``KeyError``.
+        Only the ``AMM_*`` canonical members have no equivalent here and
+        raise ``KeyError``.
         """
         return cls[value.name]
 

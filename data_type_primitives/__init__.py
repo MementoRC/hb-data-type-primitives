@@ -67,6 +67,12 @@ from data_type_primitives.trade_fee import (
 )
 from data_type_primitives.trading_rules import TradingRules
 from data_type_primitives.trailing_stop import TrailingStop
+from data_type_primitives.trigger_spec import (
+    TrailSpec,
+    TriggerKind,
+    TriggerReference,
+    TriggerSpec,
+)
 from data_type_primitives.triple_barrier import TripleBarrierConfig
 
 __all__ = [
@@ -124,7 +130,11 @@ __all__ = [
     "TradeType",
     "TradeUpdate",
     "TradingRules",
+    "TrailSpec",
     "TrailingStop",
+    "TriggerKind",
+    "TriggerReference",
+    "TriggerSpec",
     "TripleBarrierConfig",
     "UpdateExecutorAction",
     "set_limit_order_factory",
