@@ -1,11 +1,13 @@
 """Smoke + basic tests for in_flight_order module."""
 
+import asyncio
 import logging
 from decimal import Decimal
 
 import pytest
 
 import data_type_primitives
+from data_type_primitives import in_flight_order
 from data_type_primitives.common import OrderType, PositionAction, TradeType
 from data_type_primitives.in_flight_order import (
     InFlightOrder,
@@ -321,6 +323,271 @@ def test_to_limit_order_uses_registered_factory() -> None:
             "creation_timestamp": int(1_000_000.0 * 1e6),
         }
     ]
+
+
+def _trade_update(
+    trade_id: str = "T1",
+    base: str = "1.0",
+    price: str = "2000.0",
+    fee: AddedToCostTradeFee | None = None,
+    client_order_id: str = "OID-1",
+    exchange_order_id: str | None = "EX-42",
+) -> TradeUpdate:
+    return TradeUpdate(
+        trade_id=trade_id,
+        client_order_id=client_order_id,
+        exchange_order_id=exchange_order_id,  # type: ignore[arg-type]
+        trading_pair="ETH-USDT",
+        fill_timestamp=1_000_002.0,
+        fill_price=Decimal(price),
+        fill_base_amount=Decimal(base),
+        fill_quote_amount=Decimal(price) * Decimal(base),
+        fee=fee or AddedToCostTradeFee(percent=Decimal("0.001")),
+    )
+
+
+@pytest.mark.unit
+def test_trade_update_fee_asset_and_json_roundtrip() -> None:
+    fee = AddedToCostTradeFee(percent=Decimal("0.001"), percent_token="BNB")
+    tu = _trade_update(fee=fee)
+    assert tu.fee_asset == "BNB"
+    assert tu.is_taker is True
+
+    data = tu.to_json()
+    assert data["fill_price"] == "2000.0"
+    assert data["fill_base_amount"] == "1.0"
+    assert data["fill_quote_amount"] == "2000.00"
+    assert data["fee"]["fee_type"] == "AddedToCost"
+
+    restored = TradeUpdate.from_json(data)
+    assert restored.trade_id == "T1"
+    assert restored.fill_price == Decimal("2000.0")
+    assert restored.fill_base_amount == Decimal("1.0")
+    assert restored.fill_quote_amount == Decimal("2000.00")
+    assert isinstance(restored.fee, AddedToCostTradeFee)
+    assert restored.fee.percent_token == "BNB"
+
+
+@pytest.mark.unit
+def test_is_pending_cancel_confirmation_follows_state() -> None:
+    order = _make_order()
+    assert order.is_pending_cancel_confirmation is False
+    order.current_state = OrderState.PENDING_CANCEL
+    assert order.is_pending_cancel_confirmation is True
+    assert order.is_open is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("state", "failure", "cancelled", "done"),
+    [
+        (OrderState.FAILED, True, False, True),
+        (OrderState.CANCELED, False, True, True),
+        (OrderState.OPEN, False, False, False),
+    ],
+)
+def test_terminal_state_flags(state, failure, cancelled, done) -> None:
+    order = _make_order()
+    order.current_state = state
+    assert order.is_failure is failure
+    assert order.is_cancelled is cancelled
+    assert order.is_done is done
+
+
+@pytest.mark.unit
+def test_zero_amount_order_is_not_filled_by_executed_amount() -> None:
+    order = _make_order(amount=Decimal("0"))
+    order.current_state = OrderState.OPEN
+    assert order.is_filled is False
+
+
+@pytest.mark.unit
+def test_average_executed_price_none_without_fills() -> None:
+    assert _make_order().average_executed_price is None
+
+
+@pytest.mark.unit
+def test_average_executed_price_is_volume_weighted() -> None:
+    order = _make_order(amount=Decimal("3"))
+    order.update_with_trade_update(_trade_update("T1", base="1", price="2000"))
+    order.update_with_trade_update(_trade_update("T2", base="2", price="2300"))
+    assert order.average_executed_price == Decimal("6600") / Decimal("3")
+
+
+@pytest.mark.unit
+def test_average_executed_price_none_when_fills_have_zero_value() -> None:
+    order = _make_order()
+    order.order_fills["T0"] = _trade_update("T0", base="0", price="2000")
+    assert order.average_executed_price is None
+
+
+@pytest.mark.unit
+def test_json_round_trip_preserves_order_and_fills() -> None:
+    order = _make_order(amount=Decimal("2"))
+    order.update_with_order_update(
+        OrderUpdate("ETH-USDT", 1_000_001.0, OrderState.OPEN, "OID-1", "EX-42")
+    )
+    order.update_with_trade_update(_trade_update("T1", base="1", price="2000"))
+
+    data = order.to_json()
+    assert data["order_type"] == "LIMIT"
+    assert data["trade_type"] == "BUY"
+    assert data["last_state"] == str(OrderState.OPEN.value)
+    assert data["executed_amount_base"] == "1"
+    assert data["cumulative_fee_paid_base"] == 0.0  # no rate source: error is logged, not raised
+    assert set(data["order_fills"]) == {"T1"}
+    assert data["cumulative_fee_paid_quote"] == pytest.approx(2.0)
+
+    restored = InFlightOrder.from_json(data)
+    assert restored == order
+    assert restored.exchange_order_id == "EX-42"
+    assert restored.last_update_timestamp == order.last_update_timestamp
+    assert restored.processed_by_exchange_event.is_set()
+    assert not restored.completely_filled_event.is_set()
+    assert set(restored.order_fills) == {"T1"}
+
+
+@pytest.mark.unit
+def test_from_json_of_fully_filled_order_sets_completed_event() -> None:
+    order = _make_order(amount=Decimal("1"))
+    order.update_with_trade_update(_trade_update("T1", base="1"))
+    data = order.to_json()
+    del data["creation_timestamp"], data["last_update_timestamp"], data["order_fills"]
+
+    restored = InFlightOrder.from_json(data)
+    assert restored.creation_timestamp == -1
+    assert restored.last_update_timestamp == -1
+    assert restored.order_fills == {}
+    assert restored.completely_filled_event.is_set()
+
+
+@pytest.mark.unit
+def test_equality_compares_type_and_attributes() -> None:
+    assert _make_order() == _make_order()
+    assert _make_order() != _make_order(amount=Decimal("2"))
+    assert _make_order() != object()
+    perp = PerpetualDerivativeInFlightOrder(
+        client_order_id="OID-1",
+        trading_pair="ETH-USDT",
+        order_type=OrderType.LIMIT,
+        trade_type=TradeType.BUY,
+        amount=Decimal("1.0"),
+        creation_timestamp=1_000_000.0,
+        price=Decimal("2000.0"),
+    )
+    assert _make_order() != perp
+
+
+@pytest.mark.unit
+def test_in_flight_order_build_order_created_message() -> None:
+    assert _make_order().build_order_created_message() == (
+        "Created LIMIT BUY order OID-1 for 1.0 ETH-USDT at 2000.0."
+    )
+
+
+@pytest.mark.unit
+def test_exchange_order_id_preset_sets_event_and_is_returned() -> None:
+    order = InFlightOrder(
+        client_order_id="OID-1",
+        trading_pair="ETH-USDT",
+        order_type=OrderType.LIMIT,
+        trade_type=TradeType.BUY,
+        amount=Decimal("1"),
+        creation_timestamp=1.0,
+        exchange_order_id="EX-1",
+    )
+    assert order.exchange_order_id_update_event.is_set()
+
+
+@pytest.mark.unit
+async def test_get_exchange_order_id_returns_existing() -> None:
+    order = _make_order()
+    order.update_exchange_order_id("EX-9")
+    assert await order.get_exchange_order_id() == "EX-9"
+
+
+@pytest.mark.unit
+async def test_get_exchange_order_id_waits_for_update() -> None:
+    order = _make_order()
+    waiter = asyncio.create_task(order.get_exchange_order_id())
+    await asyncio.sleep(0)
+    assert not waiter.done()
+    order.update_exchange_order_id("EX-10")
+    assert await waiter == "EX-10"
+
+
+@pytest.mark.unit
+async def test_get_exchange_order_id_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(in_flight_order, "GET_EX_ORDER_ID_TIMEOUT", 0.01)
+    with pytest.raises(TimeoutError):
+        await _make_order().get_exchange_order_id()
+
+
+@pytest.mark.unit
+def test_cumulative_fee_paid_sums_fills_in_requested_token() -> None:
+    order = _make_order(amount=Decimal("3"))
+    order.update_with_trade_update(_trade_update("T1", base="1", price="2000"))
+    order.update_with_trade_update(_trade_update("T2", base="2", price="2000"))
+    assert order.cumulative_fee_paid("USDT") == Decimal("6")
+
+
+@pytest.mark.unit
+def test_order_update_for_other_order_is_ignored() -> None:
+    order = _make_order()
+    other = OrderUpdate("ETH-USDT", 1.0, OrderState.OPEN, "OTHER", "EX-X")
+    assert order.update_with_order_update(other) is False
+    assert order.current_state == OrderState.PENDING_CREATE
+    assert order.exchange_order_id is None
+
+
+@pytest.mark.unit
+def test_order_update_matched_by_exchange_id_only() -> None:
+    order = _make_order()
+    order.update_exchange_order_id("EX-42")
+    update = OrderUpdate("ETH-USDT", 5.0, OrderState.OPEN, "OTHER", "EX-42")
+    assert order.update_with_order_update(update) is True
+    assert order.current_state == OrderState.OPEN
+    assert order.last_update_timestamp == 5.0
+
+
+@pytest.mark.unit
+def test_order_update_with_same_state_is_not_an_update() -> None:
+    order = _make_order()
+    update = OrderUpdate("ETH-USDT", 5.0, OrderState.PENDING_CREATE, "OID-1")
+    assert order.update_with_order_update(update) is False
+    assert order.last_update_timestamp == 1_000_000.0
+
+
+@pytest.mark.unit
+def test_trade_update_rejects_duplicates_and_foreign_trades() -> None:
+    order = _make_order(amount=Decimal("2"))
+    assert order.update_with_trade_update(_trade_update("T1")) is True
+    assert order.update_with_trade_update(_trade_update("T1")) is False
+    foreign = _trade_update("T2", client_order_id="OTHER", exchange_order_id="EX-X")
+    assert order.update_with_trade_update(foreign) is False
+    assert order.executed_amount_base == Decimal("1.0")
+    assert set(order.order_fills) == {"T1"}
+    assert order.last_update_timestamp == 1_000_002.0
+
+
+@pytest.mark.unit
+async def test_wait_until_completely_filled_resolves_after_full_fill() -> None:
+    order = _make_order(amount=Decimal("1"))
+    waiter = asyncio.create_task(order.wait_until_completely_filled())
+    await asyncio.sleep(0)
+    assert not waiter.done()
+    order.update_with_trade_update(_trade_update("T1", base="1"))
+    await asyncio.wait_for(waiter, timeout=1)
+
+
+@pytest.mark.unit
+async def test_wait_until_processed_by_exchange_resolves_after_open() -> None:
+    order = _make_order()
+    waiter = asyncio.create_task(order.wait_until_processed_by_exchange())
+    await asyncio.sleep(0)
+    assert not waiter.done()
+    order.update_with_order_update(_order_update(OrderState.OPEN))
+    await asyncio.wait_for(waiter, timeout=1)
 
 
 @pytest.mark.unit
