@@ -43,6 +43,12 @@ from data_type_primitives.in_flight_order import (
     set_limit_order_factory,
 )
 from data_type_primitives.limit_order import LimitOrder
+from data_type_primitives.linked_order_spec import (
+    LegRole,
+    LegSpec,
+    LinkedOrderSpec,
+    LinkKind,
+)
 from data_type_primitives.notification import ExecutorNotification
 from data_type_primitives.order_book import (
     ClientOrderBookQueryResult,
@@ -97,8 +103,12 @@ __all__ = [
     "InvalidController",
     "InvalidScriptModule",
     "LazyDict",
+    "LegRole",
+    "LegSpec",
     "LimitOrder",
     "LimitOrderStatus",
+    "LinkKind",
+    "LinkedOrderSpec",
     "LPType",
     "MakerTakerExchangeFeeRates",
     "MarketDict",
