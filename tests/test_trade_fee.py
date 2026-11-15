@@ -331,6 +331,28 @@ def test_added_to_cost_cost_impact_prices_fee_token_via_exchange() -> None:
 
 
 @pytest.mark.unit
+def test_added_to_cost_cost_impact_undeterminable_fee_token_raises() -> None:
+    fee = AddedToCostTradeFee(percent=Decimal("0.01"))
+    candidate = _Candidate(None)
+    with pytest.raises(ValueError, match="cannot determine fee token"):
+        fee.get_fee_impact_on_order_cost(candidate, _Exchange({}))
+
+
+@pytest.mark.unit
+def test_added_to_cost_cost_impact_percent_token_without_collateral_uses_size_token() -> None:
+    fee = AddedToCostTradeFee(percent=Decimal("0.01"), percent_token="ETH")
+    candidate = _Candidate(None, size_token="ETH", size=Decimal("2"))
+    result = fee.get_fee_impact_on_order_cost(candidate, _Exchange({}))
+    assert result == TokenAmount("ETH", Decimal("0.02"))
+
+
+@pytest.mark.unit
+def test_added_to_cost_cost_impact_zero_percent_without_collateral_is_none() -> None:
+    fee = AddedToCostTradeFee()
+    assert fee.get_fee_impact_on_order_cost(_Candidate(None), _Exchange({})) is None
+
+
+@pytest.mark.unit
 def test_added_to_cost_returns_impact_is_none() -> None:
     fee = AddedToCostTradeFee(percent=Decimal("0.01"))
     candidate = _Candidate(None, returns=TokenAmount("USDT", Decimal("100")))
