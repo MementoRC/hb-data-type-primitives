@@ -24,6 +24,10 @@ NEW_NAMES = [
     "TriggerReference",
     "TrailSpec",
     "TriggerSpec",
+    "LinkKind",
+    "LegRole",
+    "LegSpec",
+    "LinkedOrderSpec",
 ]
 
 
