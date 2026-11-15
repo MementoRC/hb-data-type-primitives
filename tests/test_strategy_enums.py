@@ -60,9 +60,31 @@ class TestCanonicalMapping:
             assert isinstance(canonical, CanonicalOrderType)
             assert OrderType.from_canonical(canonical) is member
 
-    def test_order_type_from_canonical_unrepresentable_raises(self):
+    @pytest.mark.parametrize(
+        "canonical",
+        [m for m in CanonicalOrderType if m.name.startswith("AMM_")],
+    )
+    def test_order_type_from_canonical_amm_raises(self, canonical):
         with pytest.raises(KeyError):
-            OrderType.from_canonical(CanonicalOrderType.AMM_SWAP)
+            OrderType.from_canonical(canonical)
+
+    def test_only_amm_members_unrepresentable(self):
+        unrepresentable = {
+            m.name for m in CanonicalOrderType if m.name not in OrderType.__members__
+        }
+        assert unrepresentable == {"AMM_SWAP", "AMM_ADD", "AMM_REMOVE"}
+
+    def test_conditional_members_present_with_snake_case_values(self):
+        for name in (
+            "STOP_LOSS",
+            "TAKE_PROFIT",
+            "TRAILING_STOP",
+            "STOP_LOSS_LIMIT",
+            "TAKE_PROFIT_LIMIT",
+            "TRAILING_STOP_LIMIT",
+        ):
+            assert OrderType[name].value == name.lower()
+            assert OrderType[name].to_canonical() is CanonicalOrderType[name]
 
 
 class TestRunnableStatus:
