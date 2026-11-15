@@ -25,6 +25,7 @@ from data_type_primitives.exceptions import (
     InvalidController,
     InvalidScriptModule,
     OracleRateUnavailable,
+    OrderOutcomeUnknownError,
 )
 from data_type_primitives.executor_actions import (
     CreateExecutorAction,
@@ -110,6 +111,7 @@ __all__ = [
     "OrderBookQueryResult",
     "OrderBookRow",
     "OrderBookSnapshot",
+    "OrderOutcomeUnknownError",
     "OrderState",
     "OrderType",
     "OrderUpdate",
