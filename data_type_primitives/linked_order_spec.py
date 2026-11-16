@@ -256,8 +256,9 @@ class LinkedCancelStatus(StrEnum):
     # Every leg is terminal and the cancel ended the group. A partial fill before
     # that is still CANCELED; it is reported in ``residual_filled``.
     CANCELED = "canceled"
-    # The group's linked logic finished through a fill before the cancel took
-    # effect (an OCO winner, or a bracket exit filled).
+    # A fill decided the group (an OCO winner, or a bracket exit filled) before
+    # the cancel took effect; the winning leg may still be working, so check
+    # ``all_legs_terminal``.
     FILLED = "filled"
     # The group ended through a rejection or a placement failure.
     FAILED = "failed"
@@ -268,21 +269,46 @@ class LinkedCancelStatus(StrEnum):
 class LinkedCancelOutcome(BaseModel):
     """Immutable result of cancelling a whole linked-order group.
 
-    ``leg_outcomes`` must be non-empty and follows the order of
-    ``LinkedOrderSpec.ordered_legs()``. A ``None`` entry means that leg was never
-    submitted. ``residual_filled`` is the amount filled while cancelling (>= 0).
+    ``leg_outcomes`` must be non-empty. Its length equals
+    ``len(spec.ordered_legs())``. ``ordered_legs()`` lists only the legs present
+    in the spec, with no placeholders for absent optional exits (a BRACKET with
+    entry and SL gives 2 positions). A ``None`` entry means the leg is in the spec
+    but was never submitted or acknowledged. The length is NOT validated here,
+    because the outcome does not carry the spec; it is a producer contract only.
+
+    ``residual_filled`` is the signed net open exposure:
+
+    - BRACKET: entry filled minus the sum of the exit legs' filled.
+    - OCO: the sum of filled across all legs (normally just the winner; more than
+      one under a double fill).
+    - Units: base quantity, the same units as the legs' filled, measured when the
+      outcome is built.
+    - Sign: positive means exposure on the entry side (for OCO, on the legs'
+      side). Negative means the exposure reversed, e.g. a BRACKET double fill
+      where TP and SL both fill.
+
+    Examples: BRACKET entry 1, TP 1 gives 0; entry 1, TP 0.4, then cancel gives
+    0.6; entry 0.5, cancel before exits gives 0.5; entry 1, TP 1 and SL 1 (double
+    fill) gives -1; OCO with no fill gives 0.
 
     ``status`` is the group-level status. ``None`` means the producer did not
     report a status; this keeps v0.12.0 payloads valid. ``PENDING`` requires
-    ``all_legs_terminal`` to be False, and ``all_legs_terminal`` False allows only
-    ``None``, ``PENDING`` or ``UNKNOWN``.
+    ``all_legs_terminal`` to be False. ``all_legs_terminal`` False allows only
+    ``None``, ``PENDING``, ``FILLED`` or ``UNKNOWN``; ``CANCELED`` and ``FAILED``
+    require it True.
     """
 
     model_config = ConfigDict(frozen=True)
 
     group_id: str
     all_legs_terminal: bool
-    residual_filled: Decimal = Field(ge=0)
+    residual_filled: Decimal = Field(
+        description=(
+            "Signed net open exposure in base quantity: BRACKET entry filled minus "
+            "exit legs' filled; OCO sum of filled across legs. Negative means the "
+            "exposure reversed (double fill)."
+        )
+    )
     leg_outcomes: tuple[CancelOutcome | None, ...]
     status: LinkedCancelStatus | None = None
 
@@ -308,11 +334,12 @@ class LinkedCancelOutcome(BaseModel):
         if not self.all_legs_terminal and status not in (
             None,
             LinkedCancelStatus.PENDING,
+            LinkedCancelStatus.FILLED,
             LinkedCancelStatus.UNKNOWN,
         ):
             msg = (
-                f"all_legs_terminal is False: status must be None, PENDING or UNKNOWN, "
-                f"got {status.name}"
+                f"all_legs_terminal is False: status must be None, PENDING, FILLED or "
+                f"UNKNOWN, got {status.name}"
             )
             raise ValueError(msg)
         return self

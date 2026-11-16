@@ -430,10 +430,9 @@ class TestLinkedCancelOutcome:
         assert o.residual_filled == Decimal("1.5")
         assert o.leg_outcomes == (CancelOutcome.CANCELED, CancelOutcome.ALREADY_FILLED)
 
-    @pytest.mark.parametrize("residual", [-1, "-0.01"])
-    def test_rejects_negative_residual(self, residual):
-        with pytest.raises(ValidationError, match="residual_filled"):
-            lco(residual_filled=residual)
+    @pytest.mark.parametrize("residual", [-1, 0])
+    def test_accepts_signed_residual(self, residual):
+        assert lco(residual_filled=residual).residual_filled == Decimal(residual)
 
     def test_rejects_empty_leg_outcomes(self):
         with pytest.raises(ValidationError, match="leg_outcomes"):
@@ -457,6 +456,11 @@ class TestLinkedCancelOutcome:
     def test_python_round_trip(self):
         o = lco(residual_filled="2.5", leg_outcomes=(CancelOutcome.UNKNOWN, None))
         assert LinkedCancelOutcome.model_validate(o.model_dump()) == o
+
+    def test_negative_residual_round_trip(self):
+        o = lco(residual_filled="-1", leg_outcomes=(CancelOutcome.ALREADY_FILLED, None))
+        assert LinkedCancelOutcome.model_validate(o.model_dump()) == o
+        assert LinkedCancelOutcome.model_validate_json(o.model_dump_json()) == o
 
     def test_json_round_trip(self):
         o = lco(residual_filled="2.5", leg_outcomes=(CancelOutcome.NOT_FOUND, None))
@@ -488,7 +492,10 @@ class TestLinkedCancelStatus:
     def test_terminal_status_with_terminal_legs(self, status):
         assert lco(status=status, all_legs_terminal=True).status == status
 
-    @pytest.mark.parametrize("status", [LinkedCancelStatus.PENDING, LinkedCancelStatus.UNKNOWN])
+    @pytest.mark.parametrize(
+        "status",
+        [LinkedCancelStatus.PENDING, LinkedCancelStatus.FILLED, LinkedCancelStatus.UNKNOWN],
+    )
     def test_non_terminal_allowed_statuses(self, status):
         assert lco(status=status, all_legs_terminal=False).status == status
 
@@ -502,10 +509,7 @@ class TestLinkedCancelStatus:
         with pytest.raises(ValidationError, match="PENDING"):
             lco(status=LinkedCancelStatus.PENDING, all_legs_terminal=True)
 
-    @pytest.mark.parametrize(
-        "status",
-        [LinkedCancelStatus.CANCELED, LinkedCancelStatus.FILLED, LinkedCancelStatus.FAILED],
-    )
+    @pytest.mark.parametrize("status", [LinkedCancelStatus.CANCELED, LinkedCancelStatus.FAILED])
     def test_rejects_terminal_status_with_non_terminal_legs(self, status):
         with pytest.raises(ValidationError, match="all_legs_terminal"):
             lco(status=status, all_legs_terminal=False)
