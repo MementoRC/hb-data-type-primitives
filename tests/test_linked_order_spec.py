@@ -11,6 +11,7 @@ from data_type_primitives.linked_order_spec import (
     LegRole,
     LegSpec,
     LinkedCancelOutcome,
+    LinkedCancelStatus,
     LinkedOrderSpec,
     LinkKind,
 )
@@ -429,10 +430,9 @@ class TestLinkedCancelOutcome:
         assert o.residual_filled == Decimal("1.5")
         assert o.leg_outcomes == (CancelOutcome.CANCELED, CancelOutcome.ALREADY_FILLED)
 
-    @pytest.mark.parametrize("residual", [-1, "-0.01"])
-    def test_rejects_negative_residual(self, residual):
-        with pytest.raises(ValidationError, match="residual_filled"):
-            lco(residual_filled=residual)
+    @pytest.mark.parametrize("residual", [-1, 0])
+    def test_accepts_signed_residual(self, residual):
+        assert lco(residual_filled=residual).residual_filled == Decimal(residual)
 
     def test_rejects_empty_leg_outcomes(self):
         with pytest.raises(ValidationError, match="leg_outcomes"):
@@ -457,10 +457,92 @@ class TestLinkedCancelOutcome:
         o = lco(residual_filled="2.5", leg_outcomes=(CancelOutcome.UNKNOWN, None))
         assert LinkedCancelOutcome.model_validate(o.model_dump()) == o
 
+    def test_residual_description_states_ordered_legs_rule(self):
+        description = LinkedCancelOutcome.model_fields["residual_filled"].description
+        assert "ordered_legs" in description
+
+    def test_negative_residual_round_trip(self):
+        o = lco(residual_filled="-1", leg_outcomes=(CancelOutcome.ALREADY_FILLED, None))
+        assert LinkedCancelOutcome.model_validate(o.model_dump()) == o
+        assert LinkedCancelOutcome.model_validate_json(o.model_dump_json()) == o
+
     def test_json_round_trip(self):
         o = lco(residual_filled="2.5", leg_outcomes=(CancelOutcome.NOT_FOUND, None))
         assert LinkedCancelOutcome.model_validate_json(o.model_dump_json()) == o
         assert LinkedCancelOutcome.model_validate(o.model_dump(mode="json")) == o
+
+
+class TestLinkedCancelStatus:
+    def test_values(self):
+        assert {m.name: m.value for m in LinkedCancelStatus} == {
+            "PENDING": "pending",
+            "CANCELED": "canceled",
+            "FILLED": "filled",
+            "FAILED": "failed",
+            "UNKNOWN": "unknown",
+        }
+
+    def test_is_str(self):
+        assert all(isinstance(m, str) for m in LinkedCancelStatus)
+        assert LinkedCancelStatus.PENDING == "pending"
+
+    def test_default_status_is_none(self):
+        assert lco().status is None
+
+    @pytest.mark.parametrize(
+        "status",
+        [LinkedCancelStatus.CANCELED, LinkedCancelStatus.FILLED, LinkedCancelStatus.FAILED],
+    )
+    def test_terminal_status_with_terminal_legs(self, status):
+        assert lco(status=status, all_legs_terminal=True).status == status
+
+    @pytest.mark.parametrize(
+        "status",
+        [LinkedCancelStatus.PENDING, LinkedCancelStatus.FILLED, LinkedCancelStatus.UNKNOWN],
+    )
+    def test_non_terminal_allowed_statuses(self, status):
+        assert lco(status=status, all_legs_terminal=False).status == status
+
+    def test_unknown_with_terminal_legs_allowed(self):
+        assert lco(status=LinkedCancelStatus.UNKNOWN).status == LinkedCancelStatus.UNKNOWN
+
+    def test_none_status_with_non_terminal_legs_allowed(self):
+        assert lco(all_legs_terminal=False).status is None
+
+    def test_rejects_pending_with_terminal_legs(self):
+        with pytest.raises(ValidationError, match="PENDING"):
+            lco(status=LinkedCancelStatus.PENDING, all_legs_terminal=True)
+
+    @pytest.mark.parametrize("status", [LinkedCancelStatus.CANCELED, LinkedCancelStatus.FAILED])
+    def test_rejects_terminal_status_with_non_terminal_legs(self, status):
+        with pytest.raises(ValidationError, match="all_legs_terminal"):
+            lco(status=status, all_legs_terminal=False)
+
+    def test_python_round_trip_with_status(self):
+        o = lco(status=LinkedCancelStatus.FILLED, residual_filled="1")
+        assert LinkedCancelOutcome.model_validate(o.model_dump()) == o
+
+    def test_json_round_trip_with_status(self):
+        o = lco(status=LinkedCancelStatus.CANCELED, residual_filled="1")
+        assert LinkedCancelOutcome.model_validate_json(o.model_dump_json()) == o
+        assert LinkedCancelOutcome.model_validate(o.model_dump(mode="json")) == o
+
+    def test_v0_12_0_payload_still_valid(self):
+        o = LinkedCancelOutcome.model_validate(
+            {
+                "group_id": "g1",
+                "all_legs_terminal": False,
+                "residual_filled": "0",
+                "leg_outcomes": ("canceled", None),
+            }
+        )
+        assert o.status is None
+
+    def test_exported_from_root(self):
+        import data_type_primitives as dtp
+
+        assert "LinkedCancelStatus" in dtp.__all__
+        assert dtp.LinkedCancelStatus is LinkedCancelStatus
 
 
 def test_cancel_types_exported_from_root():
