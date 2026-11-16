@@ -457,6 +457,10 @@ class TestLinkedCancelOutcome:
         o = lco(residual_filled="2.5", leg_outcomes=(CancelOutcome.UNKNOWN, None))
         assert LinkedCancelOutcome.model_validate(o.model_dump()) == o
 
+    def test_residual_description_states_ordered_legs_rule(self):
+        description = LinkedCancelOutcome.model_fields["residual_filled"].description
+        assert "ordered_legs" in description
+
     def test_negative_residual_round_trip(self):
         o = lco(residual_filled="-1", leg_outcomes=(CancelOutcome.ALREADY_FILLED, None))
         assert LinkedCancelOutcome.model_validate(o.model_dump()) == o

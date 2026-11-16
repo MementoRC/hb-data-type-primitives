@@ -276,20 +276,25 @@ class LinkedCancelOutcome(BaseModel):
     but was never submitted or acknowledged. The length is NOT validated here,
     because the outcome does not carry the spec; it is a producer contract only.
 
-    ``residual_filled`` is the signed net open exposure:
+    ``residual_filled`` is the signed net open exposure, relative to
+    ``ordered_legs()[0]``. One rule covers both kinds: a leg on the same
+    ``trade_type`` as ``ordered_legs()[0]`` ADDS its filled amount, and a leg on
+    the opposite side SUBTRACTS it.
 
-    - BRACKET: entry filled minus the sum of the exit legs' filled.
-    - OCO: the sum of filled across all legs (normally just the winner; more than
-      one under a double fill).
+    - BRACKET: ``ordered_legs()[0]`` is the ENTRY, so the result is entry filled
+      minus the exit legs' filled.
+    - OCO: a same-side OCO gives the sum of fills; a breakout OCO (buy stop above,
+      sell stop below) under a double fill nets to 0.
     - Units: base quantity, the same units as the legs' filled, measured when the
       outcome is built.
-    - Sign: positive means exposure on the entry side (for OCO, on the legs'
-      side). Negative means the exposure reversed, e.g. a BRACKET double fill
-      where TP and SL both fill.
+    - Sign: positive means exposure on ``ordered_legs()[0]``'s side. Negative
+      means the exposure reversed, e.g. a BRACKET double fill where TP and SL
+      both fill.
 
     Examples: BRACKET entry 1, TP 1 gives 0; entry 1, TP 0.4, then cancel gives
     0.6; entry 0.5, cancel before exits gives 0.5; entry 1, TP 1 and SL 1 (double
-    fill) gives -1; OCO with no fill gives 0.
+    fill) gives -1; OCO with no fill gives 0; same-side OCO winner filled 1 gives
+    1; breakout OCO where both legs fill 1 gives 0.
 
     ``status`` is the group-level status. ``None`` means the producer did not
     report a status; this keeps v0.12.0 payloads valid. ``PENDING`` requires
@@ -304,9 +309,11 @@ class LinkedCancelOutcome(BaseModel):
     all_legs_terminal: bool
     residual_filled: Decimal = Field(
         description=(
-            "Signed net open exposure in base quantity: BRACKET entry filled minus "
-            "exit legs' filled; OCO sum of filled across legs. Negative means the "
-            "exposure reversed (double fill)."
+            "Signed net open exposure in base quantity, relative to "
+            "ordered_legs()[0]: a leg on the same trade_type adds its filled, a leg "
+            "on the opposite side subtracts it. BRACKET: entry filled minus exits "
+            "filled. OCO: same-side legs sum; a breakout OCO double fill nets to 0. "
+            "Negative means the exposure reversed."
         )
     )
     leg_outcomes: tuple[CancelOutcome | None, ...]
