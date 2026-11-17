@@ -12,6 +12,14 @@ class TradingRules(BaseModel):
 
     Mirrors the essential fields from hummingbot's TradingRule
     without the hummingbot dependency.
+
+    Default semantics:
+        A value of ``Decimal("0")`` for any ``min_*`` field means "no constraint":
+        ``min_order_size`` / ``min_notional_size`` impose no minimum, and
+        ``min_price_increment`` / ``min_base_amount_increment`` mean "no
+        quantization" (consumers must skip rounding rather than divide or
+        quantize by zero). ``max_order_size=None`` means unbounded; ``0`` is
+        not an "unbounded" sentinel for it.
     """
 
     model_config = ConfigDict(frozen=True)
