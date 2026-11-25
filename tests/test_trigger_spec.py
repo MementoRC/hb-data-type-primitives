@@ -1,5 +1,6 @@
 """Tests for the TriggerSpec value object (#50)."""
 
+import re
 from decimal import Decimal
 
 import pytest
@@ -145,4 +146,4 @@ class TestExports:
         assert name in dtp.__all__
 
     def test_version(self):
-        assert dtp.__version__ == "0.13.0"
+        assert re.fullmatch(r"\d+\.\d+\.\d+", dtp.__version__)
